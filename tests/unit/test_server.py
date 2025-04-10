@@ -251,11 +251,9 @@ async def test_server_lifespan():
 
             # Verify logging calls
             mock_logger.info.assert_any_call("Starting MCP Atlassian server")
-            mock_logger.info.assert_any_call("Read-only mode: DISABLED")
-            mock_logger.info.assert_any_call(
-                "Confluence URL: https://test.atlassian.net/wiki"
-            )
-            mock_logger.info.assert_any_call("Jira URL: https://test.atlassian.net")
+            mock_logger.info.assert_any_call("Read-only mode: %s", "DISABLED")
+            mock_logger.info.assert_any_call("Confluence URL: %s", "https://test.atlassian.net/wiki")
+            mock_logger.info.assert_any_call("Jira URL: %s", "https://test.atlassian.net")
 
 
 @pytest.mark.anyio
@@ -690,11 +688,9 @@ async def test_call_tool_read_only_mode(app_context):
 async def test_call_tool_invalid_tool(app_context):
     """Test the call_tool handler with an invalid tool name."""
     with mock_request_context(app_context):
-        # Try to call a non-existent tool - should return an error response
-        result = await call_tool("nonexistent_tool", {})
-
-        # Just verify we got a result
-        assert isinstance(result, list)
+        # Try to call a non-existent tool - should raise ValueError
+        with pytest.raises(ValueError, match="Unknown tool: nonexistent_tool"):
+            await call_tool("nonexistent_tool", {})
 
 
 @pytest.mark.anyio
@@ -763,7 +759,7 @@ async def test_call_tool_jira_create_issue_with_components(app_context):
             },
         )
 
-        # Verify the create_issue method was called with components=None
+        # Verify the create_issue method was called with components as empty string
         app_context.jira.create_issue.assert_called_once()
         call_kwargs = app_context.jira.create_issue.call_args[1]
-        assert call_kwargs["components"] is None
+        assert call_kwargs["components"] == ""
