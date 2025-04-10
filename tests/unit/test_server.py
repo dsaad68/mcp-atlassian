@@ -252,8 +252,12 @@ async def test_server_lifespan():
             # Verify logging calls
             mock_logger.info.assert_any_call("Starting MCP Atlassian server")
             mock_logger.info.assert_any_call("Read-only mode: %s", "DISABLED")
-            mock_logger.info.assert_any_call("Confluence URL: %s", "https://test.atlassian.net/wiki")
-            mock_logger.info.assert_any_call("Jira URL: %s", "https://test.atlassian.net")
+            mock_logger.info.assert_any_call(
+                "Confluence URL: %s", "https://test.atlassian.net/wiki"
+            )
+            mock_logger.info.assert_any_call(
+                "Jira URL: %s", "https://test.atlassian.net"
+            )
 
 
 @pytest.mark.anyio

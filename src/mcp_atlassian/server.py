@@ -1135,9 +1135,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                             processed_args.get("additional_fields"),
                         )
                     except json.JSONDecodeError:
-                        raise InvalidJSONError(
-                            field_name="additional_fields",
-                        ) from json.JSONDecodeError
+                        raise InvalidJSONError(field_name="additional_fields")
 
                 # Create the issue
                 issue = ctx.jira.create_issue(
@@ -1172,9 +1170,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                     try:
                         fields = json.loads(processed_args.get("fields"))
                     except json.JSONDecodeError:
-                        raise InvalidJSONError(
-                            field_name="fields",
-                        ) from json.JSONDecodeError
+                        raise InvalidJSONError(field_name="fields")
 
                 # Parse additional fields JSON
                 additional_fields = {}
@@ -1184,9 +1180,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                             processed_args.get("additional_fields"),
                         )
                     except json.JSONDecodeError:
-                        raise InvalidJSONError(
-                            field_name="additional_fields",
-                        ) from json.JSONDecodeError
+                        raise InvalidJSONError(field_name="additional_fields")
 
                 # Handle attachments if provided
                 attachments = []
