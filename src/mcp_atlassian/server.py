@@ -430,6 +430,13 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
         msg = f"Unknown tool: {name}"
         raise ValueError(msg)
 
+    # Check for write operations in read-only mode
+    if read_only and tool.is_write_operation:
+        return get_read_only_response(name)
+
+    # Extract and validate arguments based on the tool's input schema
+    processed_args = tool.extract_arguments(arguments)
+
     try:
         # Helper functions for formatting results
         def format_comment(comment: Any) -> dict[str, Any]:
@@ -450,14 +457,14 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                query = arguments.get("query", "")
-                limit = min(int(arguments.get("limit", 10)), 50)
-                spaces_filter = arguments.get("spaces_filter")
+                query = processed_args.get("query", "")
+                limit = processed_args.get("limit", 10)
+                spaces_filter = processed_args.get("spaces_filter")
 
                 # Check if the query is a simple search term or already a CQL query
                 if query and not any(
                     x in query
-                    for x in ["=", "~", ">", "<", " AND ", " OR ", "currentUser()"]
+                    for x in {"=", "~", ">", "<", " AND ", " OR ", "currentUser()"}
                 ):
                     # Convert simple search term to CQL text search
                     # This will search in all content (title, body, etc.)
@@ -484,9 +491,9 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                page_id = arguments.get("page_id")
-                include_metadata = arguments.get("include_metadata", True)
-                convert_to_markdown = arguments.get("convert_to_markdown", True)
+                page_id = processed_args.get("page_id")
+                include_metadata = processed_args.get("include_metadata", True)
+                convert_to_markdown = processed_args.get("convert_to_markdown", True)
 
                 page = ctx.confluence.get_page_content(
                     page_id,
@@ -514,12 +521,12 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                parent_id = arguments.get("parent_id")
-                expand = arguments.get("expand", "version")
-                limit = min(int(arguments.get("limit", 25)), 50)
-                include_content = arguments.get("include_content", False)
-                convert_to_markdown = arguments.get("convert_to_markdown", True)
-                start = arguments.get("start", 0)
+                parent_id = processed_args.get("parent_id")
+                expand = processed_args.get("expand", "version")
+                limit = processed_args.get("limit", 25)
+                include_content = processed_args.get("include_content", False)
+                convert_to_markdown = processed_args.get("convert_to_markdown", True)
+                start = processed_args.get("start", 0)
 
                 # Add body.storage to expand if content is requested
                 if include_content and "body" not in expand:
@@ -566,7 +573,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                page_id = arguments.get("page_id")
+                page_id = processed_args.get("page_id")
 
                 # Get the ancestor pages
                 ancestors = ctx.confluence.get_page_ancestors(page_id)
@@ -585,7 +592,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                page_id = arguments.get("page_id")
+                page_id = processed_args.get("page_id")
                 comments = ctx.confluence.get_page_comments(page_id)
 
                 # Format comments using their to_simplified_dict method if available
@@ -606,15 +613,11 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("confluence_create_page")
-
                 # Extract arguments
-                space_key = arguments.get("space_key")
-                title = arguments.get("title")
-                content = arguments.get("content")
-                parent_id = arguments.get("parent_id")
+                space_key = processed_args.get("space_key")
+                title = processed_args.get("title")
+                content = processed_args.get("content")
+                parent_id = processed_args.get("parent_id")
 
                 # Create the page (with automatic markdown conversion)
                 page = ctx.confluence.create_page(
@@ -639,15 +642,11 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("confluence_update_page")
-
-                page_id = arguments.get("page_id")
-                title = arguments.get("title")
-                content = arguments.get("content")
-                is_minor_edit = arguments.get("is_minor_edit", False)
-                version_comment = arguments.get("version_comment", "")
+                page_id = processed_args.get("page_id")
+                title = processed_args.get("title")
+                content = processed_args.get("content")
+                is_minor_edit = processed_args.get("is_minor_edit", False)
+                version_comment = processed_args.get("version_comment", "")
 
                 if not page_id or not title or not content:
                     msg = "Missing required parameters: page_id, title, and content are required."
@@ -674,11 +673,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("confluence_delete_page")
-
-                page_id = arguments.get("page_id")
+                page_id = processed_args.get("page_id")
 
                 if not page_id:
                     msg = "Missing required parameter: page_id is required."
@@ -733,13 +728,9 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.confluence:
                     raise ConfluenceNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("confluence_attach_content")
-
-                content = arguments.get("content")
-                name = arguments.get("name")
-                page_id = arguments.get("page_id")
+                content = processed_args.get("content")
+                name = processed_args.get("name")
+                page_id = processed_args.get("page_id")
 
                 if not content or not name or not page_id:
                     return [
@@ -786,15 +777,12 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                issue_key = arguments.get("issue_key")
-                fields = arguments.get(
-                    "fields",
-                    "summary,description,status,assignee,reporter,labels,priority,created,updated,issuetype",
-                )
-                expand = arguments.get("expand")
-                comment_limit = arguments.get("comment_limit", 10)
-                properties = arguments.get("properties")
-                update_history = arguments.get("update_history", True)
+                issue_key = processed_args.get("issue_key")
+                fields = processed_args.get("fields")
+                expand = processed_args.get("expand")
+                comment_limit = processed_args.get("comment_limit")
+                properties = processed_args.get("properties")
+                update_history = processed_args.get("update_history", True)
 
                 issue = ctx.jira.get_issue(
                     issue_key,
@@ -818,20 +806,17 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                jql = arguments.get("jql")
-                fields = arguments.get(
-                    "fields",
-                    "summary,description,status,assignee,reporter,labels,priority,created,updated,issuetype",
-                )
-                limit = min(int(arguments.get("limit", 10)), 50)
-                projects_filter = arguments.get("projects_filter")
-                start_at = int(arguments.get("startAt", 0))  # Get startAt
+                jql = processed_args.get("jql")
+                fields = processed_args.get("fields")
+                limit = processed_args.get("limit")
+                projects_filter = processed_args.get("projects_filter")
+                start_at = processed_args.get("startAt", 0)
 
                 search_result = ctx.jira.search_issues(
                     jql,
                     fields=fields,
                     limit=limit,
-                    start=start_at,  # Pass start_at here
+                    start=start_at,
                     projects_filter=projects_filter,
                 )
 
@@ -857,9 +842,9 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                project_key = arguments.get("project_key")
-                limit = min(int(arguments.get("limit", 10)), 50)
-                start_at = int(arguments.get("startAt", 0))  # Get startAt
+                project_key = processed_args.get("project_key")
+                limit = processed_args.get("limit")
+                start_at = processed_args.get("startAt", 0)
 
                 search_result = ctx.jira.get_project_issues(
                     project_key,
@@ -889,9 +874,9 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                epic_key = arguments.get("epic_key")
-                limit = min(int(arguments.get("limit", 10)), 50)
-                start_at = int(arguments.get("startAt", 0))  # Get startAt
+                epic_key = processed_args.get("epic_key")
+                limit = processed_args.get("limit")
+                start_at = processed_args.get("startAt", 0)
 
                 # Get issues linked to the epic
                 search_result = ctx.jira.get_epic_issues(
@@ -922,7 +907,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                issue_key = arguments.get("issue_key")
+                issue_key = processed_args.get("issue_key")
 
                 # Get available transitions
                 transitions = ctx.jira.get_available_transitions(issue_key)
@@ -952,7 +937,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                issue_key = arguments.get("issue_key")
+                issue_key = processed_args.get("issue_key")
 
                 # Get worklogs
                 worklogs = ctx.jira.get_worklogs(issue_key)
@@ -970,8 +955,8 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                issue_key = arguments.get("issue_key")
-                target_dir = arguments.get("target_dir")
+                issue_key = processed_args.get("issue_key")
+                target_dir = processed_args.get("target_dir")
 
                 if not issue_key:
                     msg = "Missing required parameter: issue_key"
@@ -997,11 +982,11 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                board_name = arguments.get("board_name")
-                project_key = arguments.get("project_key")
-                board_type = arguments.get("board_type")
-                start_at = int(arguments.get("startAt", 0))
-                limit = min(int(arguments.get("limit", 10)), 50)
+                board_name = processed_args.get("board_name")
+                project_key = processed_args.get("project_key")
+                board_type = processed_args.get("board_type")
+                start_at = processed_args.get("startAt", 0)
+                limit = processed_args.get("limit")
 
                 boards = ctx.jira.get_all_agile_boards_model(
                     board_name=board_name,
@@ -1026,13 +1011,12 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                board_id = arguments.get("board_id")
-                jql = arguments.get("jql")
-                fields = arguments.get("fields", "*all")
-
-                start_at = int(arguments.get("startAt", 0))
-                limit = min(int(arguments.get("limit", 10)), 50)
-                expand = arguments.get("expand", "version")
+                board_id = processed_args.get("board_id")
+                jql = processed_args.get("jql")
+                fields = processed_args.get("fields")
+                start_at = processed_args.get("startAt", 0)
+                limit = processed_args.get("limit")
+                expand = processed_args.get("expand")
 
                 search_result = ctx.jira.get_board_issues(
                     board_id=board_id,
@@ -1065,10 +1049,10 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                board_id = arguments.get("board_id")
-                state = arguments.get("state", "active")
-                start_at = int(arguments.get("startAt", 0))
-                limit = min(int(arguments.get("limit", 10)), 50)
+                board_id = processed_args.get("board_id")
+                state = processed_args.get("state", "active")
+                start_at = processed_args.get("startAt", 0)
+                limit = processed_args.get("limit")
 
                 sprints = ctx.jira.get_all_sprints_from_board_model(
                     board_id=board_id,
@@ -1092,10 +1076,10 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                sprint_id = arguments.get("sprint_id")
-                fields = arguments.get("fields", "*all")
-                start_at = int(arguments.get("startAt", 0))
-                limit = min(int(arguments.get("limit", 10)), 50)
+                sprint_id = processed_args.get("sprint_id")
+                fields = processed_args.get("fields")
+                start_at = processed_args.get("startAt", 0)
+                limit = processed_args.get("limit")
 
                 search_result = ctx.jira.get_sprint_issues(
                     sprint_id=sprint_id,
@@ -1126,19 +1110,15 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("jira_create_issue")
-
                 # Extract required arguments
-                project_key = arguments.get("project_key")
-                summary = arguments.get("summary")
-                issue_type = arguments.get("issue_type")
+                project_key = processed_args.get("project_key")
+                summary = processed_args.get("summary")
+                issue_type = processed_args.get("issue_type")
 
                 # Extract optional arguments
-                description = arguments.get("description", "")
-                assignee = arguments.get("assignee")
-                components = arguments.get("components")
+                description = processed_args.get("description", "")
+                assignee = processed_args.get("assignee")
+                components = processed_args.get("components")
 
                 # Parse components from comma-separated string to list
                 if components and isinstance(components, str):
@@ -1149,10 +1129,10 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
 
                 # Parse additional fields
                 additional_fields = {}
-                if arguments.get("additional_fields"):
+                if processed_args.get("additional_fields"):
                     try:
                         additional_fields = json.loads(
-                            arguments.get("additional_fields"),
+                            processed_args.get("additional_fields"),
                         )
                     except json.JSONDecodeError:
                         raise InvalidJSONError(
@@ -1183,18 +1163,14 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("jira_update_issue")
-
                 # Extract arguments
-                issue_key = arguments.get("issue_key")
+                issue_key = processed_args.get("issue_key")
 
                 # Parse fields JSON
                 fields = {}
-                if arguments.get("fields"):
+                if processed_args.get("fields"):
                     try:
-                        fields = json.loads(arguments.get("fields"))
+                        fields = json.loads(processed_args.get("fields"))
                     except json.JSONDecodeError:
                         raise InvalidJSONError(
                             field_name="fields",
@@ -1202,10 +1178,10 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
 
                 # Parse additional fields JSON
                 additional_fields = {}
-                if arguments.get("additional_fields"):
+                if processed_args.get("additional_fields"):
                     try:
                         additional_fields = json.loads(
-                            arguments.get("additional_fields"),
+                            processed_args.get("additional_fields"),
                         )
                     except json.JSONDecodeError:
                         raise InvalidJSONError(
@@ -1214,13 +1190,13 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
 
                 # Handle attachments if provided
                 attachments = []
-                if arguments.get("attachments"):
+                if processed_args.get("attachments"):
                     # Parse attachments - can be a single string or a list of strings
-                    if isinstance(arguments.get("attachments"), str):
+                    if isinstance(processed_args.get("attachments"), str):
                         try:
                             # Try to parse as JSON array
                             parsed_attachments = json.loads(
-                                arguments.get("attachments"),
+                                processed_args.get("attachments"),
                             )
                             if isinstance(parsed_attachments, list):
                                 attachments = parsed_attachments
@@ -1229,18 +1205,20 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                                 attachments = [parsed_attachments]
                         except json.JSONDecodeError:
                             # Handle non-JSON string formats
-                            if "," in arguments.get("attachments"):
+                            if "," in processed_args.get("attachments"):
                                 # Split by comma and strip whitespace (supporting comma-separated list format)
                                 attachments = [
                                     path.strip()
-                                    for path in arguments.get("attachments").split(",")
+                                    for path in processed_args.get("attachments").split(
+                                        ","
+                                    )
                                 ]
                             else:
                                 # Plain string - single file path
-                                attachments = [arguments.get("attachments")]
-                    elif isinstance(arguments.get("attachments"), list):
+                                attachments = [processed_args.get("attachments")]
+                    elif isinstance(processed_args.get("attachments"), list):
                         # Already a list
-                        attachments = arguments.get("attachments")
+                        attachments = processed_args.get("attachments")
 
                     # Validate all paths exist
                     for path in attachments[:]:
@@ -1291,11 +1269,7 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("jira_delete_issue")
-
-                issue_key = arguments.get("issue_key")
+                issue_key = processed_args.get("issue_key")
 
                 # Delete the issue
                 _ = ctx.jira.delete_issue(issue_key)
@@ -1315,12 +1289,8 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("jira_add_comment")
-
-                issue_key = arguments.get("issue_key")
-                comment = arguments.get("comment")
+                issue_key = processed_args.get("issue_key")
+                comment = processed_args.get("comment")
 
                 # Add the comment
                 result = ctx.jira.add_comment(issue_key, comment)
@@ -1336,15 +1306,11 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("jira_add_worklog")
-
                 # Extract arguments
-                issue_key = arguments.get("issue_key")
-                time_spent = arguments.get("time_spent")
-                comment = arguments.get("comment")
-                started = arguments.get("started")
+                issue_key = processed_args.get("issue_key")
+                time_spent = processed_args.get("time_spent")
+                comment = processed_args.get("comment")
+                started = processed_args.get("started")
 
                 # Add the worklog
                 worklog = ctx.jira.add_worklog(
@@ -1367,12 +1333,8 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("jira_link_to_epic")
-
-                issue_key = arguments.get("issue_key")
-                epic_key = arguments.get("epic_key")
+                issue_key = processed_args.get("issue_key")
+                epic_key = processed_args.get("epic_key")
 
                 # Link the issue to the epic
                 issue = ctx.jira.link_issue_to_epic(issue_key, epic_key)
@@ -1393,89 +1355,59 @@ async def call_tool(name: str, arguments: Any) -> Sequence[TextContent]:
                 if not ctx or not ctx.jira:
                     raise JiraNotConfiguredError
 
-                # Write operation - check read-only mode
-                if read_only:
-                    return get_read_only_response("jira_transition_issue")
-
                 # Extract arguments
-                issue_key = arguments.get("issue_key")
-                transition_id = arguments.get("transition_id")
-                comment = arguments.get("comment")
+                issue_key = processed_args.get("issue_key")
+                transition_id = processed_args.get("transition_id")
+                comment = processed_args.get("comment")
 
-                # Validate required parameters
-                if not issue_key:
-                    msg = "issue_key is required"
-                    raise ValueError(msg)
-                if not transition_id:
-                    msg = "transition_id is required"
-                    raise ValueError(msg)
-
-                # Convert transition_id to integer if it's a numeric string
-                # This ensures compatibility with the Jira API which expects integers
-                if isinstance(transition_id, str) and transition_id.isdigit():
-                    transition_id = int(transition_id)
-                    logger.debug(
-                        "Converted string transition_id to integer: %s",
-                        transition_id,
-                    )
-
-                # Parse fields JSON
+                # Parse fields JSON if provided
                 fields = {}
-                if arguments.get("fields"):
+                if processed_args.get("fields"):
                     try:
-                        fields = json.loads(arguments.get("fields"))
+                        fields = json.loads(processed_args.get("fields"))
                     except json.JSONDecodeError:
-                        raise InvalidJSONError(
-                            field_name="fields",
-                        ) from json.JSONDecodeError
+                        raise InvalidJSONError(field_name="fields")
 
-                try:
-                    # Transition the issue
-                    issue = ctx.jira.transition_issue(
-                        issue_key=issue_key,
-                        transition_id=transition_id,
-                        fields=fields,
-                        comment=comment,
-                    )
+                # Transition the issue
+                result = ctx.jira.transition_issue(
+                    issue_key=issue_key,
+                    transition_id=transition_id,
+                    fields=fields,
+                    comment=comment,
+                )
 
-                    result = {
-                        "message": f"Issue {issue_key} transitioned successfully",
-                        "issue": issue.to_simplified_dict() if issue else None,
-                    }
+                # Format the result
+                response = {
+                    "success": result,
+                    "message": f"Issue {issue_key} has been transitioned with transition ID {transition_id}",
+                }
 
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(result, indent=2, ensure_ascii=False),
-                        ),
-                    ]
-                except Exception as e:
-                    # Provide a clear error message, especially for transition ID type issues
-                    error_msg = str(e)
-                    if "'transition' identifier must be an integer" in error_msg:
-                        error_msg = (
-                            f"Error transitioning issue {issue_key}: The Jira API requires transition IDs to be integers. "
-                            f"Received transition ID '{transition_id}' of type {type(transition_id).__name__}. "
-                            f"Please use the numeric ID value from jira_get_transitions."
-                        )
-                    else:
-                        error_msg = f"Error transitioning issue {issue_key} with transition ID {transition_id}: {error_msg}"
-
-                    logger.exception(error_msg)
-                    return [
-                        TextContent(
-                            type="text",
-                            text=error_msg,
-                        ),
-                    ]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(response, indent=2, ensure_ascii=False),
+                    ),
+                ]
 
             case _:
-                msg = f"Unknown tool: {name}"
-                raise ValueError(msg)
+                msg = f"Tool implementation for {tool.name} is not available."
+                raise NotImplementedError(msg)
 
     except Exception as e:
-        logger.exception("Tool execution error: %s", e)
-        return [TextContent(type="text", text=f"Error: {e!s}")]
+        # For detailed error handling and better user experience
+        error_msg = f"Error executing {tool.name}: {e!s}"
+        logger.exception(error_msg)
+
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(
+                    {"error": error_msg, "tool": tool.name},
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+            ),
+        ]
 
 
 async def run_server(transport: str = "stdio", port: int = 8000) -> None:
