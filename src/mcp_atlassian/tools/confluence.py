@@ -1,4 +1,4 @@
-from .schema import ToolDefinition, Toolbox
+from .schema import Toolbox, ToolDefinition
 
 # Define Confluence tools
 CONFLUENCE_TOOLS = [

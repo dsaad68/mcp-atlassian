@@ -1,6 +1,6 @@
-from typing import List
+"""Jira tools."""
 
-from .schema import ToolDefinition, Toolbox
+from .schema import Toolbox, ToolDefinition
 
 # Define Jira tools
 JIRA_TOOLS = [
